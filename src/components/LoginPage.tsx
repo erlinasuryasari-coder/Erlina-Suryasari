@@ -172,21 +172,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {demoAccounts.slice(0, 4).map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleQuickDemoLogin(acc)}
-                  className="text-left p-3.5 rounded-lg border border-slate-200 hover:border-teal-600 hover:bg-teal-50/40 transition-colors cursor-pointer group"
-                >
-                  <div className="text-xs font-semibold text-teal-800 group-hover:text-teal-900">
-                    {acc.roleNama}
-                  </div>
-                  <div className="text-sm font-medium text-slate-900 mt-0.5 truncate">{acc.nama}</div>
-                  <div className="text-xs text-slate-500 mt-1 line-clamp-2">{acc.deskripsi}</div>
-                </button>
-              ))}
+              {demoAccounts
+                .filter(
+                  (acc, idx, arr) => arr.findIndex((other) => other.role === acc.role) === idx
+                )
+                .slice(0, 4)
+                .map((acc) => (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleQuickDemoLogin(acc)}
+                    className="text-left p-3.5 rounded-lg border border-slate-200 hover:border-teal-600 hover:bg-teal-50/40 transition-colors cursor-pointer group"
+                  >
+                    <div className="text-xs font-semibold text-teal-800 group-hover:text-teal-900">
+                      {acc.roleNama}
+                    </div>
+                    <div className="text-sm font-medium text-slate-900 mt-0.5 truncate">{acc.nama}</div>
+                    <div className="text-xs text-slate-500 mt-1 line-clamp-2">{acc.deskripsi}</div>
+                  </button>
+                ))}
             </div>
           </div>
         </div>

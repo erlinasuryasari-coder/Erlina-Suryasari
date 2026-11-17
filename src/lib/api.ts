@@ -79,7 +79,10 @@ export const api = {
     }
   },
 
-  me: () => request<{ user: SessionUser; isDemoSimulation: boolean }>('/api/auth/me'),
+  me: () =>
+    request<{ authenticated?: boolean; user: SessionUser | null; isDemoSimulation: boolean }>(
+      '/api/auth/me'
+    ),
 
   getDashboard: () => request<DashboardSummary>('/api/dashboard'),
 
@@ -224,6 +227,28 @@ export const api = {
     request<{ ok: boolean; message: string }>('/api/admin/backup/reset-demo', { method: 'POST' }),
 
   exportBackupJsonUrl: () => '/api/admin/backup/export',
+
+  downloadBackupJson: async () => {
+    const headers = new Headers();
+    if (inMemoryToken) {
+      headers.set('Authorization', `Bearer ${inMemoryToken}`);
+    }
+    const response = await fetch('/api/admin/backup/export', {
+      headers,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Gagal mengunduh cadangan (${response.status})`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sigap-ppa-sidoarjo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 export const KECAMATAN_SIDOARJO = [

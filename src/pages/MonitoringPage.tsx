@@ -18,8 +18,11 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ onOpenCase }) =>
   const [petugas, setPetugas] = useState<PetugasProfile[]>([]);
   const [rujukan, setRujukan] = useState<RujukanRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setError(null);
     Promise.all([
       api.getDashboard(),
       api.getPenugasanList(),
@@ -32,11 +35,33 @@ export const MonitoringPage: React.FC<MonitoringPageProps> = ({ onOpenCase }) =>
         setPetugas(ptg.petugas);
         setRujukan(rjk.items);
       })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Gagal memuat panel monitoring.');
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
-  if (loading || !summary) {
+  if (loading) {
     return <div className="p-8 text-sm text-slate-500">Memuat panel monitoring terpadu...</div>;
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="bg-white border border-red-200 rounded-xl p-6 text-sm text-red-800 space-y-3">
+        <p>{error || 'Data monitoring tidak tersedia untuk peran Anda.'}</p>
+        <button
+          type="button"
+          onClick={loadData}
+          className="px-4 py-2 rounded-lg bg-navy-900 text-white text-xs font-semibold cursor-pointer"
+        >
+          Muat Ulang
+        </button>
+      </div>
+    );
   }
 
   const prdMetrics = [

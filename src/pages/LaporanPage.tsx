@@ -6,12 +6,20 @@ import { DashboardSummary } from '../types/sigap.ts';
 export const LaporanPage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setError(null);
     api
       .getDashboard()
       .then(setSummary)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Gagal memuat laporan agregat.'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const handleDownloadCsv = () => {
@@ -52,8 +60,23 @@ export const LaporanPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (loading || !summary) {
+  if (loading) {
     return <div className="p-8 text-sm text-slate-500">Menyiapkan laporan agregat pelayanan...</div>;
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="bg-white border border-red-200 rounded-xl p-6 text-sm text-red-800 space-y-3">
+        <p>{error || 'Data laporan tidak tersedia untuk peran Anda.'}</p>
+        <button
+          type="button"
+          onClick={loadData}
+          className="px-4 py-2 rounded-lg bg-navy-900 text-white text-xs font-semibold cursor-pointer"
+        >
+          Muat Ulang
+        </button>
+      </div>
+    );
   }
 
   return (

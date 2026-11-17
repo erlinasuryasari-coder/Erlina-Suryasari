@@ -155,15 +155,25 @@ function appendAudit(
   saveDatabase(db);
 }
 
-function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+function extractSessionToken(req: Request): string {
   const authHeader = req.headers.authorization;
-  let token = '';
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7).trim();
-  } else {
-    const cookies = parseCookies(req.headers.cookie);
-    token = cookies[SESSION_COOKIE] ?? '';
+    return authHeader.slice(7).trim();
   }
+  const cookies = parseCookies(req.headers.cookie);
+  return cookies[SESSION_COOKIE] ?? '';
+}
+
+function buildCookieHeader(req: Request, value: string, maxAgeSec: number): string {
+  const isHttps =
+    req.secure ||
+    String(req.headers['x-forwarded-proto'] || '').toLowerCase().includes('https');
+  const sameSite = isHttps ? 'SameSite=None; Secure' : 'SameSite=Lax';
+  return `${SESSION_COOKIE}=${encodeURIComponent(value)}; HttpOnly; Path=/; ${sameSite}; Max-Age=${maxAgeSec}`;
+}
+
+function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const token = extractSessionToken(req);
 
   if (!token) {
     res.status(401).json({ error: 'Sesi tidak ditemukan. Silakan masuk terlebih dahulu.' });
@@ -445,7 +455,7 @@ async function startServer() {
     const sessionUser = buildSessionUser(user.id);
     res.setHeader(
       'Set-Cookie',
-      `${SESSION_COOKIE}=${encodeURIComponent(token)}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
+      buildCookieHeader(req, token, Math.floor(SESSION_TTL_MS / 1000))
     );
     res.json({ user: sessionUser, token });
   });
@@ -462,12 +472,25 @@ async function startServer() {
         `Pengguna ${req.sessionUser.nama} keluar dari sesi.`
       );
     }
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0`);
+    res.setHeader('Set-Cookie', buildCookieHeader(req, '', 0));
     res.json({ ok: true });
   });
 
-  app.get('/api/auth/me', requireAuth, (req: AuthenticatedRequest, res) => {
-    res.json({ user: req.sessionUser, isDemoSimulation: db.meta.isDemoSimulation });
+  app.get('/api/auth/me', (req: Request, res: Response) => {
+    const token = extractSessionToken(req);
+    const session = token ? sessions.get(token) : undefined;
+    if (!session || session.expiresAt < Date.now()) {
+      if (session) sessions.delete(token);
+      res.json({ authenticated: false, user: null, isDemoSimulation: db.meta.isDemoSimulation });
+      return;
+    }
+    const sessionUser = buildSessionUser(session.userId);
+    if (!sessionUser) {
+      sessions.delete(token);
+      res.json({ authenticated: false, user: null, isDemoSimulation: db.meta.isDemoSimulation });
+      return;
+    }
+    res.json({ authenticated: true, user: sessionUser, isDemoSimulation: db.meta.isDemoSimulation });
   });
 
   // --- DASHBOARD & MONITORING ---
@@ -587,7 +610,7 @@ async function startServer() {
     const items: PengaduanListItem[] = list
       .sort((a, b) => b.tanggalPenerimaan.localeCompare(a.tanggalPenerimaan))
       .map((p) => {
-        const korban = db.korban.find((k) => k.id === p.korbanId)!;
+        const korban = db.korban.find((k) => k.id === p.korbanId);
         const allowFull = canViewFullVictimIdentity(user, p.id);
         const activeTasks = db.penugasan.filter((t) => t.pengaduanId === p.id && t.statusTugas === 'Aktif');
         return {
@@ -597,7 +620,7 @@ async function startServer() {
             inisial: korban?.inisial ?? '-',
             kelompokUsia: korban?.kelompokUsia ?? '-',
             kecamatanDomisili: korban?.kecamatanDomisili ?? p.kecamatanKejadian,
-            namaTampil: allowFull ? korban.namaLengkap : `${korban?.kodeAnonim ?? '-'} (${korban?.inisial ?? 'Anonim'})`,
+            namaTampil: allowFull && korban ? korban.namaLengkap : `${korban?.kodeAnonim ?? '-'} (${korban?.inisial ?? 'Anonim'})`,
           },
           assignedPetugasIds: activeTasks.map((t) => t.petugasId),
           assignedPetugasNames: Array.from(new Set(activeTasks.map((t) => t.petugasNama))),
@@ -721,7 +744,11 @@ async function startServer() {
       return;
     }
 
-    const rawKorban = db.korban.find((k) => k.id === pengaduan.korbanId)!;
+    const rawKorban = db.korban.find((k) => k.id === pengaduan.korbanId);
+    if (!rawKorban) {
+      res.status(404).json({ error: 'Data korban terkait kasus tidak ditemukan.' });
+      return;
+    }
     const allowFullIdentity = canViewFullVictimIdentity(user, pengaduan.id);
     const allowRestrictedNotes = canViewRestrictedAssessmentNotes(user, pengaduan.id);
 
@@ -1414,6 +1441,10 @@ async function startServer() {
       'Mengembalikan data prototipe ke kondisi simulasi awal.'
     );
     res.json({ ok: true, message: 'Data simulasi demonstrasi berhasil dipulihkan ke kondisi awal.' });
+  });
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Endpoint API tidak ditemukan.' });
   });
 
   // Vite middleware in dev, static serving in production

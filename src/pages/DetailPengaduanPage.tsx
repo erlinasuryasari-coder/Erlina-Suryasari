@@ -632,6 +632,7 @@ export const DetailPengaduanPage: React.FC<DetailPengaduanPageProps> = ({
           canManage={hasPerm(user, 'koordinasi.manage') && detail.canEditCase}
           onReload={loadDetail}
           onMessage={setActionMessage}
+          onError={setError}
         />
       )}
 
@@ -643,6 +644,7 @@ export const DetailPengaduanPage: React.FC<DetailPengaduanPageProps> = ({
           canManage={hasPerm(user, 'pendampingan.manage') && detail.canEditCase}
           onReload={loadDetail}
           onMessage={setActionMessage}
+          onError={setError}
         />
       )}
 
@@ -655,6 +657,7 @@ export const DetailPengaduanPage: React.FC<DetailPengaduanPageProps> = ({
           canManage={hasPerm(user, 'rujukan.manage') && detail.canEditCase}
           onReload={loadDetail}
           onMessage={setActionMessage}
+          onError={setError}
         />
       )}
 
@@ -695,7 +698,8 @@ const CaseKoordinasiTab: React.FC<{
   canManage: boolean;
   onReload: () => Promise<void>;
   onMessage: (msg: string) => void;
-}> = ({ pengaduanId, items, mitraList, canManage, onReload, onMessage }) => {
+  onError: (msg: string | null) => void;
+}> = ({ pengaduanId, items, mitraList, canManage, onReload, onMessage, onError }) => {
   const [mitraId, setMitraId] = useState(mitraList[0]?.id ?? '');
   const [kebutuhan, setKebutuhan] = useState('');
   const [hasil, setHasil] = useState('');
@@ -703,18 +707,23 @@ const CaseKoordinasiTab: React.FC<{
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.createKoordinasi({
-      pengaduanId,
-      mitraId,
-      jenisKebutuhan: kebutuhan,
-      hasilKoordinasi: hasil,
-      statusTindakLanjut: status,
-      tanggalKoordinasi: new Date().toISOString().slice(0, 10),
-    });
-    setKebutuhan('');
-    setHasil('');
-    onMessage('Riwayat koordinasi lintas sektor berhasil ditambahkan.');
-    await onReload();
+    onError(null);
+    try {
+      await api.createKoordinasi({
+        pengaduanId,
+        mitraId,
+        jenisKebutuhan: kebutuhan,
+        hasilKoordinasi: hasil,
+        statusTindakLanjut: status,
+        tanggalKoordinasi: new Date().toISOString().slice(0, 10),
+      });
+      setKebutuhan('');
+      setHasil('');
+      onMessage('Riwayat koordinasi lintas sektor berhasil ditambahkan.');
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Gagal menyimpan koordinasi.');
+    }
   };
 
   return (
@@ -811,7 +820,8 @@ const CasePendampinganTab: React.FC<{
   canManage: boolean;
   onReload: () => Promise<void>;
   onMessage: (msg: string) => void;
-}> = ({ pengaduanId, items, canManage, onReload, onMessage }) => {
+  onError: (msg: string | null) => void;
+}> = ({ pengaduanId, items, canManage, onReload, onMessage, onError }) => {
   const [jenis, setJenis] = useState<JenisLayananPendampingan>(JenisLayananPendampingan.PSIKOLOGIS);
   const [bentuk, setBentuk] = useState('');
   const [catatan, setCatatan] = useState('');
@@ -819,18 +829,23 @@ const CasePendampinganTab: React.FC<{
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.createPendampingan({
-      pengaduanId,
-      tanggalPendampingan: new Date().toISOString().slice(0, 10),
-      jenisLayanan: jenis,
-      bentukPendampingan: bentuk,
-      catatanPerkembangan: catatan,
-      statusPendampingan: status,
-    });
-    setBentuk('');
-    setCatatan('');
-    onMessage('Catatan sesi pendampingan berhasil disimpan.');
-    await onReload();
+    onError(null);
+    try {
+      await api.createPendampingan({
+        pengaduanId,
+        tanggalPendampingan: new Date().toISOString().slice(0, 10),
+        jenisLayanan: jenis,
+        bentukPendampingan: bentuk,
+        catatanPerkembangan: catatan,
+        statusPendampingan: status,
+      });
+      setBentuk('');
+      setCatatan('');
+      onMessage('Catatan sesi pendampingan berhasil disimpan.');
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Gagal menyimpan pendampingan.');
+    }
   };
 
   return (
@@ -928,7 +943,8 @@ const CaseRujukanTab: React.FC<{
   canManage: boolean;
   onReload: () => Promise<void>;
   onMessage: (msg: string) => void;
-}> = ({ pengaduanId, items, mitraList, canManage, onReload, onMessage }) => {
+  onError: (msg: string | null) => void;
+}> = ({ pengaduanId, items, mitraList, canManage, onReload, onMessage, onError }) => {
   const [mitraId, setMitraId] = useState(mitraList[0]?.id ?? '');
   const [layanan, setLayanan] = useState('');
   const [alasan, setAlasan] = useState('');
@@ -936,18 +952,23 @@ const CaseRujukanTab: React.FC<{
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await api.createRujukan({
-      pengaduanId,
-      mitraId,
-      jenisLayananDibutuhkan: layanan,
-      alasanRujukan: alasan,
-      tanggalRujukan: new Date().toISOString().slice(0, 10),
-      statusRujukan: status,
-    });
-    setLayanan('');
-    setAlasan('');
-    onMessage('Rujukan mitra berhasil dicatat.');
-    await onReload();
+    onError(null);
+    try {
+      await api.createRujukan({
+        pengaduanId,
+        mitraId,
+        jenisLayananDibutuhkan: layanan,
+        alasanRujukan: alasan,
+        tanggalRujukan: new Date().toISOString().slice(0, 10),
+        statusRujukan: status,
+      });
+      setLayanan('');
+      setAlasan('');
+      onMessage('Rujukan mitra berhasil dicatat.');
+      await onReload();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Gagal mengirim rujukan.');
+    }
   };
 
   return (

@@ -47,14 +47,19 @@ export const PengaturanAuditPage: React.FC<PengaturanAuditPageProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const canEditRbac = hasPerm(user, 'users.manage');
+  const canViewAudit = hasPerm(user, 'audit.view');
   const canBackup = hasPerm(user, 'backup.manage');
 
   const loadData = async () => {
+    setError(null);
     try {
-      const [rRes, aRes] = await Promise.all([api.getRoles(), api.getAuditLogs({ q, modul })]);
+      const rRes = await api.getRoles();
       setRoles(rRes.roles);
-      setLogs(aRes.logs);
-      setLastBackupAt(aRes.lastBackupAt);
+      if (canViewAudit) {
+        const aRes = await api.getAuditLogs({ q, modul });
+        setLogs(aRes.logs);
+        setLastBackupAt(aRes.lastBackupAt);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memuat pengaturan dan audit.');
     }
@@ -144,13 +149,23 @@ export const PengaturanAuditPage: React.FC<PengaturanAuditPageProps> = ({
               >
                 Catat Snapshot Sekarang
               </button>
-              <a
-                href={api.exportBackupJsonUrl()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-navy-900"
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(null);
+                  try {
+                    await api.downloadBackupJson();
+                    setMessage('Cadangan JSON terstruktur berhasil diunduh.');
+                    await loadData();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Gagal mengunduh cadangan.');
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-navy-900 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Unduh Cadangan JSON</span>
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={handleResetDemo}
