@@ -1463,8 +1463,9 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SIGAP PPA SIDOARJO berjalan pada http://localhost:${PORT}`);
-  });
+      console.log(`SIGAP PPA SIDOARJO berjalan pada http://localhost:${PORT}`);
+    });
+  })();
 }
 
-startServer();
+export default app;
