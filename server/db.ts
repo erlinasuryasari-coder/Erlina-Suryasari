@@ -960,7 +960,9 @@ function createSeedDatabase(): SigapDatabase {
   };
 }
 
-const DATA_DIR = path.resolve(process.cwd(), '.data');
+
+
+const DATA_DIR = process.env.VERCEL ? '/tmp' : path.resolve(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'sigap_ppa_db.json');
 
 export function loadDatabase(): SigapDatabase {
