@@ -42,14 +42,45 @@ dotenv.config();
 const PORT = 3000;
 const SESSION_COOKIE = 'sigap_ppa_sid';
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const SESSION_SECRET = process.env.SESSION_SECRET || 'sigap-ppa-sidoarjo-secret-2026';
 
-interface ActiveSession {
-  token: string;
-  userId: string;
-  expiresAt: number;
+function createSessionToken(userId: string): string {
+  const payload = Buffer.from(
+    JSON.stringify({ userId, exp: Date.now() + SESSION_TTL_MS })
+  ).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(payload)
+    .digest('base64url');
+  return `${payload}.${signature}`;
 }
 
-const sessions = new Map<string, ActiveSession>();
+function verifySessionToken(token: string): { userId: string } | null {
+  const parts = token.split('.');
+  if (parts.length !== 2) return null;
+  const [payload, signature] = parts;
+  if (!payload || !signature) return null;
+
+  const expectedSig = crypto
+    .createHmac('sha256', SESSION_SECRET)
+    .update(payload)
+    .digest('base64url');
+
+  const sigBuf = Buffer.from(signature, 'utf8');
+  const expectedBuf = Buffer.from(expectedSig, 'utf8');
+  if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
+    return null;
+  }
+
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data.userId || typeof data.exp !== 'number' || Date.now() > data.exp) return null;
+    return { userId: String(data.userId) };
+  } catch {
+    return null;
+  }
+}
+
 let db: SigapDatabase = loadDatabase();
 
 interface AuthenticatedRequest extends Request {
@@ -179,16 +210,14 @@ function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunctio
     return;
   }
 
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) sessions.delete(token);
+  const session = verifySessionToken(token);
+  if (!session) {
     res.status(401).json({ error: 'Sesi Anda telah berakhir. Silakan masuk kembali.' });
     return;
   }
 
   const sessionUser = buildSessionUser(session.userId);
   if (!sessionUser) {
-    sessions.delete(token);
     res.status(403).json({ error: 'Akun dinonaktifkan atau tidak memiliki akses aktif.' });
     return;
   }
@@ -435,12 +464,7 @@ app.post('/api/auth/login', (req, res) => {
     return;
   }
 
-  const token = crypto.randomBytes(32).toString('hex');
-  sessions.set(token, {
-    token,
-    userId: user.id,
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  });
+  const token = createSessionToken(user.id);
 
   user.terakhirLogin = new Date().toISOString();
   appendAudit(
@@ -459,9 +483,6 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 app.post('/api/auth/logout', requireAuth, (req: AuthenticatedRequest, res) => {
-  if (req.sessionToken) {
-    sessions.delete(req.sessionToken);
-  }
   if (req.sessionUser) {
     appendAudit(
       { id: req.sessionUser.id, nama: req.sessionUser.nama, role: req.sessionUser.role },
@@ -476,15 +497,13 @@ app.post('/api/auth/logout', requireAuth, (req: AuthenticatedRequest, res) => {
 
 app.get('/api/auth/me', (req: Request, res: Response) => {
   const token = extractSessionToken(req);
-  const session = token ? sessions.get(token) : undefined;
-  if (!session || session.expiresAt < Date.now()) {
-    if (session) sessions.delete(token);
+  const session = token ? verifySessionToken(token) : null;
+  if (!session) {
     res.json({ authenticated: false, user: null, isDemoSimulation: db.meta.isDemoSimulation });
     return;
   }
   const sessionUser = buildSessionUser(session.userId);
   if (!sessionUser) {
-    sessions.delete(token);
     res.json({ authenticated: false, user: null, isDemoSimulation: db.meta.isDemoSimulation });
     return;
   }
