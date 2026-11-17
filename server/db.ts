@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { Redis } from '@upstash/redis';
 import {
   AsesmenRecord,
   JenisLayananPendampingan,
@@ -961,11 +962,30 @@ function createSeedDatabase(): SigapDatabase {
 }
 
 
-
 const DATA_DIR = process.env.VERCEL ? '/tmp' : path.resolve(process.cwd(), '.data');
 const DB_FILE = path.join(DATA_DIR, 'sigap_ppa_db.json');
+const REDIS_DB_KEY = 'sigap_ppa_db';
 
-export function loadDatabase(): SigapDatabase {
+const hasUpstash = Boolean(
+  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+);
+const redis = hasUpstash ? Redis.fromEnv() : null;
+
+export async function loadDatabase(): Promise<SigapDatabase> {
+  if (redis) {
+    try {
+      const stored = await redis.get<SigapDatabase>(REDIS_DB_KEY);
+      if (stored && typeof stored === 'object' && Array.isArray(stored.pengaduan)) {
+        return stored;
+      }
+    } catch (err) {
+      console.warn('Gagal membaca basis data dari Upstash Redis:', err);
+    }
+    const seeded = createSeedDatabase();
+    await saveDatabase(seeded);
+    return seeded;
+  }
+
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -978,11 +998,20 @@ export function loadDatabase(): SigapDatabase {
     console.warn('Gagal membaca berkas basis data lokal, membuat data simulasi awal:', err);
   }
   const seeded = createSeedDatabase();
-  saveDatabase(seeded);
+  await saveDatabase(seeded);
   return seeded;
 }
 
-export function saveDatabase(db: SigapDatabase): void {
+export async function saveDatabase(db: SigapDatabase): Promise<void> {
+  if (redis) {
+    try {
+      await redis.set(REDIS_DB_KEY, db);
+      return;
+    } catch (err) {
+      console.error('Gagal menyimpan basis data ke Upstash Redis:', err);
+    }
+  }
+
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -993,8 +1022,8 @@ export function saveDatabase(db: SigapDatabase): void {
   }
 }
 
-export function resetToDemoSeed(): SigapDatabase {
+export async function resetToDemoSeed(): Promise<SigapDatabase> {
   const seeded = createSeedDatabase();
-  saveDatabase(seeded);
+  await saveDatabase(seeded);
   return seeded;
 }
