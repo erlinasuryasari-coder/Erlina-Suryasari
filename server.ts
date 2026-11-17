@@ -160,13 +160,13 @@ function maskKorbanRecord(korban: KorbanRecord, allowFull: boolean): KorbanRecor
   };
 }
 
-function appendAudit(
+async function appendAudit(
   user: { id: string; nama: string; role: UserRoleCode },
   modul: string,
   aksi: string,
   ringkasan: string,
   entitasId?: string
-): void {
+): Promise<void> {
   const entry: RiwayatAktivitasRecord = {
     id: `LOG-${String(db.riwayatAktivitas.length + 1).padStart(4, '0')}`,
     waktu: new Date().toISOString(),
@@ -1183,7 +1183,7 @@ app.get('/api/rujukan', requireAuth, (req: AuthenticatedRequest, res) => {
   res.json({ items });
 });
 
-app.post('/api/rujukan', requireAuth, requirePermission('rujukan.manage'), (req: AuthenticatedRequest, res) => {
+('/api/rujukan', requireAuth, requirePermission('rujukan.manage'), (req: AuthenticatedRequest, res) => {
   const user = req.sessionUser!;
   const {
     pengaduanId,
@@ -1448,10 +1448,10 @@ app.get('/api/admin/backup/export', requireAuth, requirePermission('backup.manag
   res.json(sanitizedDb);
 });
 
-app.post('/api/admin/backup/reset-demo', requireAuth, requirePermission('backup.manage'), (req: AuthenticatedRequest, res) => {
+app.post('/api/admin/backup/reset-demo', requireAuth, requirePermission('backup.manage'), async (req: AuthenticatedRequest, res) => {
   const actor = req.sessionUser!;
-  db = await resetToDemoSeed(;
-  appendAudit(
+  db = await resetToDemoSeed();
+  await appendAudit(
     actor,
     'Keamanan & Cadangan',
     'RESET_DATA_DEMO',
