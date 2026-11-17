@@ -9,7 +9,7 @@ import {
   SigapDatabase,
   verifyPassword,
   hashPassword,
-} from './server/db';
+} from './server/db.js';
 import {
   AsesmenRecord,
   DashboardSummary,
@@ -35,7 +35,7 @@ import {
   StatusRujukan,
   StatusTindakLanjut,
   UserRoleCode,
-} from './src/types/sigap';
+} from './src/types/sigap.js';
 
 dotenv.config();
 
