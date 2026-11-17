@@ -24,7 +24,7 @@ import {
   StatusTindakLanjut,
   UserAccount,
   UserRoleCode,
-} from '../src/types/sigap.ts';
+} from '../src/types/sigap';
 
 export interface StoredUser extends UserAccount {
   passwordHash: string;
