@@ -81,7 +81,7 @@ function verifySessionToken(token: string): { userId: string } | null {
   }
 }
 
-let db: SigapDatabase = loadDatabase();
+let db: SigapDatabase = await loadDatabase();
 
 interface AuthenticatedRequest extends Request {
   sessionUser?: SessionUser;
@@ -182,7 +182,7 @@ function appendAudit(
   if (db.riwayatAktivitas.length > 500) {
     db.riwayatAktivitas = db.riwayatAktivitas.slice(0, 500);
   }
-  saveDatabase(db);
+  await saveDatabase(db);
 }
 
 function extractSessionToken(req: Request): string {
@@ -1450,7 +1450,7 @@ app.get('/api/admin/backup/export', requireAuth, requirePermission('backup.manag
 
 app.post('/api/admin/backup/reset-demo', requireAuth, requirePermission('backup.manage'), (req: AuthenticatedRequest, res) => {
   const actor = req.sessionUser!;
-  db = resetToDemoSeed();
+  db = await resetToDemoSeed(;
   appendAudit(
     actor,
     'Keamanan & Cadangan',
